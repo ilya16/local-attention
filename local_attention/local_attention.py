@@ -97,7 +97,7 @@ class LocalAttention(nn.Module):
             self.heads = heads
             self.rel_pos = RelativePositionalEmbedding(dim_head, heads, rel_pos_length)
 
-    def forward(self, q, k, v, input_mask = None):
+    def forward(self, q, k, v, input_mask = None, seq2seq_mask_len = None):
         shape = q.shape
 
         merge_into_batch = lambda t: t.reshape(-1, *t.shape[-2:])
@@ -148,6 +148,11 @@ class LocalAttention(nn.Module):
             if self.exact_windowsize:
                 max_causal_window_size = (self.window_size * self.look_backward)
                 mask = mask & (bq_t[:, :, :, None] > (bq_k[:, :, None, :] + max_causal_window_size))
+
+            if seq2seq_mask_len is not None:
+                h = b // len(seq2seq_mask_len)
+                seq2seq_mask_len = merge_dims(0, 1, expand_dim(seq2seq_mask_len, 1, h))
+                mask = mask & (bq_k > seq2seq_mask_len[:, None, None])[:, :, None, :]
 
             dots.masked_fill_(mask, mask_value)
             del mask
